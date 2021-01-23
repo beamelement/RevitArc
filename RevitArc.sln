@@ -1,0 +1,25 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 16
+VisualStudioVersion = 16.0.30011.22
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "RevitArc", "RevitArc\RevitArc.csproj", "{99B0FBFF-BA4B-4D94-B81C-9CE2B6769217}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{99B0FBFF-BA4B-4D94-B81C-9CE2B6769217}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{99B0FBFF-BA4B-4D94-B81C-9CE2B6769217}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{99B0FBFF-BA4B-4D94-B81C-9CE2B6769217}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{99B0FBFF-BA4B-4D94-B81C-9CE2B6769217}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {1DBD628C-315C-44C7-BBA3-F338C86AD528}
+	EndGlobalSection
+EndGlobal
