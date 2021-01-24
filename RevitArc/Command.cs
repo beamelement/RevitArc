@@ -76,7 +76,7 @@ namespace RevitArc
             List<XYZ> points = Largrange(ControlPoint);
 
             //拱轴线上下各偏移界面高度减去直径
-            double h = 265/2;
+            double h = 2.65/2 * 3.28;
 
             List<XYZ> UPlist = new List<XYZ>();
             List<XYZ> DOWNlist = new List<XYZ>();
@@ -92,7 +92,7 @@ namespace RevitArc
             }
 
 
-            //将族载入项目文件
+            //将弦杆族载入项目文件，并进行实例化
             using (Transaction tran = new Transaction(uiDoc.Document))
             {
                 tran.Start("载入弦杆族");
@@ -100,14 +100,9 @@ namespace RevitArc
 
                 //载入族
                 string file = @"C:\Users\zyx\Desktop\2RevitArcBridge\钢管混凝土构件库\chordFamlily.rfa";
-                bool loadSuccess = uiDoc.Document.LoadFamily(file, out Family family);
-
-                //得到族模板，并激活
-                ElementId elementId;
-                ISet<ElementId> symbols = family.GetFamilySymbolIds();
-                elementId = symbols.First();
-                FamilySymbol adaptiveFamilySymbol = uiDoc.Document.GetElement(elementId) as FamilySymbol;
+                FamilySymbol adaptiveFamilySymbol = loadFaimly(file, commandData);
                 adaptiveFamilySymbol.Activate();
+
 
                 //将族实例化，并调整自适应点
                 for (int i = 0; i < points.Count - 1; i += 1)
@@ -117,10 +112,18 @@ namespace RevitArc
                     ReferencePoint referencePoint1 = uiDoc.Document.GetElement(adaptivePoints[0]) as ReferencePoint;
                     ReferencePoint referencePoint2 = uiDoc.Document.GetElement(adaptivePoints[1]) as ReferencePoint;
                     referencePoint1.Position = UPlist[i];
-                    referencePoint2.Position = UPlist[i+1];
-
+                    referencePoint2.Position = UPlist[i + 1];
                 }
 
+                for (int i = 0; i < points.Count - 1; i += 1)
+                {
+                    FamilyInstance familyInstance = AdaptiveComponentInstanceUtils.CreateAdaptiveComponentInstance(uiDoc.Document, adaptiveFamilySymbol);
+                    IList<ElementId> adaptivePoints = AdaptiveComponentInstanceUtils.GetInstancePlacementPointElementRefIds(familyInstance);
+                    ReferencePoint referencePoint1 = uiDoc.Document.GetElement(adaptivePoints[0]) as ReferencePoint;
+                    ReferencePoint referencePoint2 = uiDoc.Document.GetElement(adaptivePoints[1]) as ReferencePoint;
+                    referencePoint1.Position = DOWNlist[i];
+                    referencePoint2.Position = DOWNlist[i + 1];
+                }
 
 
                 tran.Commit();
@@ -134,8 +137,8 @@ namespace RevitArc
             {
                 tran.Start("创建模型线");
 
-                CreateModelLine(UPlist,commandData);
-                CreateModelLine(DOWNlist,commandData);
+                //CreateModelLine(UPlist,commandData);
+                //CreateModelLine(DOWNlist,commandData);
                 CreateModelLine(points,commandData);
 
                 tran.Commit();
@@ -144,9 +147,17 @@ namespace RevitArc
             return Result.Succeeded;
         }
 
-
-
-
+        private FamilySymbol loadFaimly(string file,ExternalCommandData commandData)
+        {
+            UIDocument uiDoc = commandData.Application.ActiveUIDocument;           //取得当前活动文档     
+            bool loadSuccess = uiDoc.Document.LoadFamily(file, out Family family);
+            //得到族模板，并激活
+            ElementId elementId;
+            ISet<ElementId> symbols = family.GetFamilySymbolIds();
+            elementId = symbols.First();
+            FamilySymbol adaptiveFamilySymbol = uiDoc.Document.GetElement(elementId) as FamilySymbol;
+            return adaptiveFamilySymbol;
+        }
 
         private void CreateModelLine(List<XYZ> points,ExternalCommandData commandData)
         {

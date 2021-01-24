@@ -68,8 +68,8 @@ namespace RevitArc
 
         private void DoneClick(object sender, RoutedEventArgs e)
         {
-            Spacing = Convert.ToDouble(this.TB.Text);
-            Height = Convert.ToDouble(this.TB2.Text);
+            Spacing = Convert.ToDouble(this.TB.Text) * 3.28;
+            Height = Convert.ToDouble(this.TB2.Text) * 3.28;
 
             Done = true;
             DialogResult = true;
