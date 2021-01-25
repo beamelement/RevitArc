@@ -79,4 +79,3 @@ C:\Users\zyx\Desktop\2RevitArcBridge\RevitArc\RevitArc\bin\Debug\HelixToolkit.dl
 C:\Users\zyx\Desktop\2RevitArcBridge\RevitArc\RevitArc\bin\Debug\HelixToolkit.Wpf.dll
 C:\Users\zyx\Desktop\2RevitArcBridge\RevitArc\RevitArc\bin\Debug\HelixToolkit.xml
 C:\Users\zyx\Desktop\2RevitArcBridge\RevitArc\RevitArc\bin\Debug\HelixToolkit.Wpf.xml
-C:\Users\zyx\Desktop\2RevitArcBridge\RevitArc\RevitArc\obj\Debug\RevitArc.csprojAssemblyReference.cache

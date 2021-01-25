@@ -75,6 +75,7 @@
     <None Include="source\Chord.obj" />
     <None Include="packages.config" />
     <None Include="source\chordFamlily.rfa" />
+    <None Include="source\webMemberFamily.rfa" />
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
 </Project>

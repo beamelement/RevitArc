@@ -72,11 +72,43 @@ namespace RevitArc
                 }
             }
 
+
+            FamilySymbol chordFamilySymbol;
+            FamilySymbol webMemberFamilySymbol;
+            //1、载入弦杆族
+            //2、载入腹杆族
+            using (Transaction tran = new Transaction(uiDoc.Document))
+            {
+                tran.Start("载入族");
+                //载入弦杆族
+                string file = @"C:\Users\zyx\Desktop\2RevitArcBridge\RevitArc\RevitArc\source\chordFamlily.rfa";
+                chordFamilySymbol = loadFaimly(file, commandData);
+                chordFamilySymbol.Activate();
+
+                //载入腹杆族
+                file = @"C:\Users\zyx\Desktop\2RevitArcBridge\RevitArc\RevitArc\source\webMemberFamily.rfa";
+                webMemberFamilySymbol = loadFaimly(file, commandData);
+                webMemberFamilySymbol.Activate();
+
+                tran.Commit();
+            }
+
             //通过拉格朗日插值法计算出拱轴线
             List<XYZ> points = Largrange(ControlPoint);
 
-            //拱轴线上下各偏移界面高度减去直径
-            double h = 2.65/2 * 3.28;
+
+            //求偏移向量并对其归一化,预备给之后横向偏移用
+            XYZ normal;
+            //先求向量
+            XYZ line1 = new XYZ(points[points.Count - 1].X - points[0].X, points[points.Count - 1].Y - points[0].Y, points[points.Count - 1].Z - points[0].Z);
+            XYZ temp = line1.CrossProduct(XYZ.BasisZ);
+            //向量归一化,即把向量的模化作是1
+            double tempLength = temp.GetLength();
+            normal = new XYZ(temp.X / tempLength, temp.Y / tempLength, temp.Z / tempLength);
+
+
+            //拱轴线上下各偏移界面高度减去直径,这个值是否勾到界面上去到时候再回来看好了
+            double h = 2.65 * 3.28/2;
 
             List<XYZ> UPlist = new List<XYZ>();
             List<XYZ> DOWNlist = new List<XYZ>();
@@ -91,48 +123,139 @@ namespace RevitArc
                 DOWNlist.Add(pDOWN);
             }
 
-
-            //将弦杆族载入项目文件，并进行实例化
+            //实例化第一个拱（通过自适应族）
             using (Transaction tran = new Transaction(uiDoc.Document))
             {
-                tran.Start("载入弦杆族");
-
-
-                //载入族
-                string file = @"C:\Users\zyx\Desktop\2RevitArcBridge\钢管混凝土构件库\chordFamlily.rfa";
-                FamilySymbol adaptiveFamilySymbol = loadFaimly(file, commandData);
-                adaptiveFamilySymbol.Activate();
-
+                tran.Start("弦杆族实例化");
 
                 //将族实例化，并调整自适应点
-                for (int i = 0; i < points.Count - 1; i += 1)
-                {
-                    FamilyInstance familyInstance = AdaptiveComponentInstanceUtils.CreateAdaptiveComponentInstance(uiDoc.Document, adaptiveFamilySymbol);
-                    IList<ElementId> adaptivePoints = AdaptiveComponentInstanceUtils.GetInstancePlacementPointElementRefIds(familyInstance);
-                    ReferencePoint referencePoint1 = uiDoc.Document.GetElement(adaptivePoints[0]) as ReferencePoint;
-                    ReferencePoint referencePoint2 = uiDoc.Document.GetElement(adaptivePoints[1]) as ReferencePoint;
-                    referencePoint1.Position = UPlist[i];
-                    referencePoint2.Position = UPlist[i + 1];
-                }
+                CreateFamilyInstance(UPlist, UPlist, chordFamilySymbol, commandData, false);
 
-                for (int i = 0; i < points.Count - 1; i += 1)
-                {
-                    FamilyInstance familyInstance = AdaptiveComponentInstanceUtils.CreateAdaptiveComponentInstance(uiDoc.Document, adaptiveFamilySymbol);
-                    IList<ElementId> adaptivePoints = AdaptiveComponentInstanceUtils.GetInstancePlacementPointElementRefIds(familyInstance);
-                    ReferencePoint referencePoint1 = uiDoc.Document.GetElement(adaptivePoints[0]) as ReferencePoint;
-                    ReferencePoint referencePoint2 = uiDoc.Document.GetElement(adaptivePoints[1]) as ReferencePoint;
-                    referencePoint1.Position = DOWNlist[i];
-                    referencePoint2.Position = DOWNlist[i + 1];
-                }
+                CreateFamilyInstance(DOWNlist, DOWNlist, chordFamilySymbol, commandData, false);
 
 
                 tran.Commit();
             }
 
 
+            //实例化第一个拱腹杆
+            using (Transaction tran = new Transaction(uiDoc.Document))
+            {
+                tran.Start("实例化腹杆");
+
+                //腹杆间距
+                double spacing = 1 * 3.28 / 2;
+
+                //确定点并实例化斜、竖腹杆
+                for (int j = 0; j < 2; j += 1)
+                {
+                    List<XYZ> tempUP = new List<XYZ>();
+                    List<XYZ> tempDOWN = new List<XYZ>();
+
+                    for (int i = 0; i < points.Count; i += 1)
+                    {
+                        double length = spacing;
+
+                        XYZ p = UPlist[i];
+                        XYZ pUP = new XYZ(p.X + (2 * j - 1) * length * normal.X, p.Y + (2 * j - 1) * length * normal.Y, p.Z + (2 * j - 1) * length * normal.Z);
+                        tempUP.Add(pUP);
+
+                        p = DOWNlist[i];
+                        XYZ pDOWN = new XYZ(p.X + (2 * j - 1) * length * normal.X, p.Y + (2 * j - 1) * length * normal.Y, p.Z + (2 * j - 1) * length * normal.Z);
+                        tempDOWN.Add(pDOWN);
+
+                    }
+                    CreateFamilyInstance(tempUP, tempDOWN, webMemberFamilySymbol, commandData, true);
+
+                    //确定斜腹杆点位并实例化
+                    //点位制定策略，上弦杆最高的点丢，下弦杆最低点重复一次
+                    int ZMAXindex = getZMAXIndex(tempDOWN);
+                    tempDOWN.Insert(ZMAXindex, tempDOWN[ZMAXindex]);
+
+                    ZMAXindex = getZMAXIndex(tempUP);
+                    tempUP.RemoveAt(ZMAXindex);
+                    CreateFamilyInstance(tempUP, tempDOWN, webMemberFamilySymbol, commandData, false);
+                }
+
+                tran.Commit();
+            }
+
+
+
+            List<XYZ> UPlist2 = new List<XYZ>();
+            List<XYZ> DOWNlist2 = new List<XYZ>();
+            //实例化第二个拱（通过自适应族）
+            using (Transaction tran = new Transaction(uiDoc.Document))
+            {
+                tran.Start("弦杆族实例化");
+
+                //生成另一个拱的点
+                for (int i = 0; i < points.Count; i += 1)
+                {
+                    double length = window1.Spacing;
+                    XYZ p = UPlist[i];
+                    XYZ pUP = new XYZ(p.X + length * normal.X, p.Y + length * normal.Y, p.Z + length * normal.Z);
+                    UPlist2.Add(pUP);
+
+                    p = DOWNlist[i];
+                    XYZ pDOWN = new XYZ(p.X + length * normal.X, p.Y + length * normal.Y, p.Z + length * normal.Z);
+                    DOWNlist2.Add(pDOWN);
+                }
+
+                //将族实例化，并调整自适应点
+                CreateFamilyInstance(UPlist2, UPlist2, chordFamilySymbol, commandData, false);
+                CreateFamilyInstance(DOWNlist2, DOWNlist2, chordFamilySymbol, commandData, false);
+
+                tran.Commit();
+            }
+
+
+            //实例化第二个拱腹杆
+            using (Transaction tran = new Transaction(uiDoc.Document))
+            {
+                tran.Start("实例化腹杆");
+
+                //腹杆间距
+                double spacing = 1 * 3.28 / 2;
+
+                //实例化斜、竖腹杆
+                for (int j = 0; j < 2; j += 1)
+                {
+                    List<XYZ> tempUP = new List<XYZ>();
+                    List<XYZ> tempDOWN = new List<XYZ>();
+                    for (int i = 0; i < points.Count; i += 1)
+                    {
+                        double length = spacing;
+
+                        XYZ p = UPlist2[i];
+                        XYZ pUP = new XYZ(p.X + (2 * j - 1) * length * normal.X, p.Y + (2 * j - 1) * length * normal.Y, p.Z + (2 * j - 1) * length * normal.Z);
+                        tempUP.Add(pUP);
+
+                        p = DOWNlist2[i];
+                        XYZ pDOWN = new XYZ(p.X + (2 * j - 1) * length * normal.X, p.Y + (2 * j - 1) * length * normal.Y, p.Z + (2 * j - 1) * length * normal.Z);
+                        tempDOWN.Add(pDOWN);
+
+                    }
+                    //实例化数值腹杆
+                    CreateFamilyInstance(tempUP, tempDOWN, webMemberFamilySymbol, commandData, true);
+
+                    //确定斜腹杆点位并实例化
+                    //点位制定策略，上弦杆最高的点丢，下弦杆最低点重复一次
+                    int ZMAXindex = getZMAXIndex(tempDOWN);
+                    tempDOWN.Insert(ZMAXindex, tempDOWN[ZMAXindex]);
+
+                    ZMAXindex = getZMAXIndex(tempUP);
+                    tempUP.RemoveAt(ZMAXindex);
+                    CreateFamilyInstance(tempUP, tempDOWN, webMemberFamilySymbol, commandData, false);
+                }
+
+                tran.Commit();
+            }
+
+
+
             //创建模型线了
             //让这条线以模型线的形式展示一下
-
             using (Transaction tran = new Transaction(uiDoc.Document))
             {
                 tran.Start("创建模型线");
@@ -144,9 +267,75 @@ namespace RevitArc
                 tran.Commit();
             }
 
+
             return Result.Succeeded;
         }
 
+
+
+
+
+        //获取列表中最高点的索引值
+        private int getZMAXIndex(List<XYZ> xYZs)
+        {
+            double Zmax = xYZs[0].Z;
+            int ZMAXIndex = 0;
+            for (int i = 0; i < xYZs.Count; i += 1)
+            {
+                if (Zmax < xYZs[i].Z)
+                {
+                    Zmax = xYZs[i].Z;
+                    ZMAXIndex = i;
+                }
+
+            }
+
+            return ZMAXIndex;
+        }
+
+        //创建族实例
+        private void CreateFamilyInstance(List<XYZ> points1, List<XYZ> points2, FamilySymbol FamilySymbol,ExternalCommandData commandData,bool v)
+        {
+
+            //最后这个bool设定是为了设定两个list是否错开，是一一对应，还是错开一个相加
+
+
+            UIDocument uiDoc = commandData.Application.ActiveUIDocument;           //取得当前活动文档    
+
+            if (v)
+            {
+                //如果不错开
+                for (int i = 0; i < points1.Count; i += 1)
+                {
+                    FamilyInstance familyInstance = AdaptiveComponentInstanceUtils.CreateAdaptiveComponentInstance(uiDoc.Document, FamilySymbol);
+                    IList<ElementId> adaptivePoints = AdaptiveComponentInstanceUtils.GetInstancePlacementPointElementRefIds(familyInstance);
+                    //取得的参照点
+                    ReferencePoint referencePoint1 = uiDoc.Document.GetElement(adaptivePoints[0]) as ReferencePoint;
+                    ReferencePoint referencePoint2 = uiDoc.Document.GetElement(adaptivePoints[1]) as ReferencePoint;
+                    //设置参照点坐标
+                    referencePoint1.Position = points1[i];
+                    referencePoint2.Position = points2[i];
+                }
+
+            }
+            else
+            {
+                //错开一个相加
+                for (int i = 0; i < points1.Count - 1; i += 1)
+                {
+                    FamilyInstance familyInstance = AdaptiveComponentInstanceUtils.CreateAdaptiveComponentInstance(uiDoc.Document, FamilySymbol);
+                    IList<ElementId> adaptivePoints = AdaptiveComponentInstanceUtils.GetInstancePlacementPointElementRefIds(familyInstance);
+                    //取得的参照点
+                    ReferencePoint referencePoint1 = uiDoc.Document.GetElement(adaptivePoints[0]) as ReferencePoint;
+                    ReferencePoint referencePoint2 = uiDoc.Document.GetElement(adaptivePoints[1]) as ReferencePoint;
+                    //设置参照点坐标
+                    referencePoint1.Position = points1[i];
+                    referencePoint2.Position = points2[i + 1];
+                }
+            }
+        }
+
+        //载入族
         private FamilySymbol loadFaimly(string file,ExternalCommandData commandData)
         {
             UIDocument uiDoc = commandData.Application.ActiveUIDocument;           //取得当前活动文档     
@@ -159,6 +348,7 @@ namespace RevitArc
             return adaptiveFamilySymbol;
         }
 
+        //创建模型线
         private void CreateModelLine(List<XYZ> points,ExternalCommandData commandData)
         {
             for (int i = 0; i < points.Count - 1; i += 1)
@@ -178,6 +368,7 @@ namespace RevitArc
             }
         }
 
+        //计算拉格朗日线
         private List<XYZ> Largrange(List<XYZ> xYZs)
         {
             List<XYZ> xyzList = new List<XYZ>();
@@ -186,7 +377,7 @@ namespace RevitArc
             XYZ normal = line.Direction;
 
 
-            for (double x = xYZs[0].X; x < xYZs[xYZs.Count - 1].X; x++)
+            for (double x = xYZs[0].X; x < xYZs[xYZs.Count - 1].X; x += 2.75*3.28)
             {
                 double z = FZ(x);
                 double tanCita = normal.Y / normal.X;
@@ -225,6 +416,7 @@ namespace RevitArc
             }
         }
 
+        //选择两条交叉的线求交点
         private XYZ SelectPoint(ExternalCommandData commandData)
         {
 
@@ -250,5 +442,6 @@ namespace RevitArc
             return Point;
 
         }
+
     }
 }
